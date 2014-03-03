@@ -1,0 +1,17 @@
+#vim temp files
+*~
+*.swp
+*.rpm
+
+#node npm directory
+node_modules/
+tmpFiles/
+
+#log files
+*.log
+*.err
+
+#ctags
+tags
+
+#ignore the go executables
