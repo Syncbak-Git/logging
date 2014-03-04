@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// L is the global Logger instance
+// L is the global Logger instance.
 var L *Logger
 
 // New creates a new private Logger. If fileName is an empty string, the Logger will write to stdout. New will return nil if it can't create/open fileName.
@@ -36,6 +36,7 @@ func New(fileName string) *Logger {
 	return &l
 }
 
+// Logger is a type passed to the logging functions. It stores the log settings.
 type Logger struct {
 	appName    string
 	hostName   string
@@ -142,7 +143,7 @@ func (l *Logger) writeEntry(severity string, values map[string]string, format st
 		messageStr = strings.Replace(messageStr, "{", "[", -1)
 		messageStr = strings.Replace(messageStr, "}", "]", -1)
 	}
-	jsonStr, err := makeJsonString(kv, values, messageStr)
+	jsonStr, err := makeJSONString(kv, values, messageStr)
 	if err != nil {
 		return err
 	}
@@ -171,7 +172,7 @@ func makeHeaderString(m map[string]string) string {
 	return strings.Join([]string{m["timestamp"], m["severity"]}, "\t")
 }
 
-func makeJsonString(header map[string]string, kv map[string]string, message string) (string, error) {
+func makeJSONString(header map[string]string, kv map[string]string, message string) (string, error) {
 	merged := make(map[string]string)
 	for k, v := range kv {
 		merged[k] = v
