@@ -1,4 +1,3 @@
-// Package logging provides basic logging with machine-readable output.
 package logging
 
 import (
@@ -13,29 +12,19 @@ import (
 	"time"
 )
 
-// Logger provides functions for setting up logging and writing log entries.
-type Logger interface {
-	SetLogFile(fileName string) error
-	SetOutput(debug, info, err, critical, fatal bool)
-	Debug(values map[string]string, format string, args ...interface{}) error
-	Info(values map[string]string, format string, args ...interface{}) error
-	Error(values map[string]string, format string, args ...interface{}) error
-	Critical(values map[string]string, format string, args ...interface{}) error
-	Fatal(values map[string]string, format string, args ...interface{}) error
-}
-
-// L is the global logger instance
-var L logger
+// L is the global Logger instance
+var L *Logger
 
 // New creates a new private Logger. If fileName is an empty string, the Logger will write to stdout. New will return nil if it can't create/open fileName.
-func New(fileName string) Logger {
+func New(fileName string) *Logger {
 	hostname, _ := os.Hostname()
-	l = logger{
+	l := Logger{
 		appName:    path.Base(os.Args[0]),
 		hostName:   hostname,
 		pid:        strconv.Itoa(os.Getpid()),
 		doDebug:    false,
 		doInfo:     true,
+		doWarning:  true,
 		doError:    true,
 		doCritical: true,
 		doFatal:    true,
@@ -44,16 +33,17 @@ func New(fileName string) Logger {
 	if err != nil {
 		return nil
 	}
-	return l
+	return &l
 }
 
-type logger struct {
+type Logger struct {
 	appName    string
 	hostName   string
 	pid        string
 	writer     io.WriteCloser
 	doDebug    bool
 	doInfo     bool
+	doWarning  bool
 	doError    bool
 	doCritical bool
 	doFatal    bool
@@ -64,7 +54,7 @@ func init() {
 }
 
 // SetLogFile sets fileName as the log file target. An empty string sets logging to stdout (the default).
-func (l *logger) SetLogFile(fileName string) error {
+func (l *Logger) SetLogFile(fileName string) error {
 	var w *os.File
 	var err error
 	if len(fileName) == 0 {
@@ -82,24 +72,33 @@ func (l *logger) SetLogFile(fileName string) error {
 }
 
 // SetOutput controls which levels of logging are enabled/disabled
-func (l *logger) SetOutput(debug, info, err, critical, fatal bool) {
+func (l *Logger) SetOutput(debug, info, warning, err, critical, fatal bool) {
 	l.doDebug = debug
 	l.doInfo = info
+	l.doWarning = warning
 	l.doError = err
 	l.doCritical = critical
 	l.doFatal = fatal
 }
 
 // Error is like Debug for ERROR log entries.
-func (l *logger) Error(values map[string]string, format string, args ...interface{}) error {
+func (l *Logger) Error(values map[string]string, format string, args ...interface{}) error {
 	if !l.doError {
 		return nil
 	}
 	return l.writeEntry("ERROR", values, format, args...)
 }
 
+// Warning is like Debug for WARNING log entries.
+func (l *Logger) Warning(values map[string]string, format string, args ...interface{}) error {
+	if !l.doWarning {
+		return nil
+	}
+	return l.writeEntry("WARNING", values, format, args...)
+}
+
 // Info is like Debug for INFO log entries.
-func (l *logger) Info(values map[string]string, format string, args ...interface{}) error {
+func (l *Logger) Info(values map[string]string, format string, args ...interface{}) error {
 	if !l.doInfo {
 		return nil
 	}
@@ -109,7 +108,7 @@ func (l *logger) Info(values map[string]string, format string, args ...interface
 // Debug writes a DEBUG log entry. The optional values map contains
 // user-supplied key-value pairs. format and args are passed to fmt.Printf
 // to generate the message entry.
-func (l *logger) Debug(values map[string]string, format string, args ...interface{}) error {
+func (l *Logger) Debug(values map[string]string, format string, args ...interface{}) error {
 	if !l.doDebug {
 		return nil
 	}
@@ -117,7 +116,7 @@ func (l *logger) Debug(values map[string]string, format string, args ...interfac
 }
 
 // Critical is like Debug for CRITICAL log entries.
-func (l *logger) Critical(values map[string]string, format string, args ...interface{}) error {
+func (l *Logger) Critical(values map[string]string, format string, args ...interface{}) error {
 	if !l.doCritical {
 		return nil
 	}
@@ -125,7 +124,7 @@ func (l *logger) Critical(values map[string]string, format string, args ...inter
 }
 
 // Fatal is like Debug for FATAL log entries, but it also calls os.Exit(1).
-func (l *logger) Fatal(values map[string]string, format string, args ...interface{}) error {
+func (l *Logger) Fatal(values map[string]string, format string, args ...interface{}) error {
 	if !l.doFatal {
 		return nil
 	}
@@ -134,7 +133,7 @@ func (l *logger) Fatal(values map[string]string, format string, args ...interfac
 	return err // won't actually get here
 }
 
-func (l *logger) writeEntry(severity string, values map[string]string, format string, args ...interface{}) error {
+func (l *Logger) writeEntry(severity string, values map[string]string, format string, args ...interface{}) error {
 	kv := l.getHeaderValues(severity)
 	headerStr := makeHeaderString(kv)
 	messageStr := fmt.Sprintf(format, args...)
@@ -151,7 +150,7 @@ func (l *logger) writeEntry(severity string, values map[string]string, format st
 	return err
 }
 
-func (l *logger) getHeaderValues(severity string) map[string]string {
+func (l *Logger) getHeaderValues(severity string) map[string]string {
 	pc, file, line, _ := runtime.Caller(3)
 	f := runtime.FuncForPC(pc)
 	caller := f.Name()
