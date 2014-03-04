@@ -1,7 +1,7 @@
 package logging_test
 
 import (
-	"../logging"
+	"github.com/Syncbak-Git/logging"
 	"testing"
 )
 
