@@ -41,7 +41,8 @@ type Logger struct {
 	appName    string
 	hostName   string
 	pid        string
-	writer     io.WriteCloser
+	jsonWriter io.WriteCloser
+	textWriter io.WriteCloser
 	doDebug    bool
 	doInfo     bool
 	doWarning  bool
@@ -55,19 +56,35 @@ func init() {
 }
 
 // SetLogFile sets fileName as the log file target. An empty string sets logging to stdout (the default).
+// Normally, there are two log files, one for text and one for json. The text file will be written to
+// filename, while the json content will be written to filename.json
+// If filename.json cannot be opened for write (eg, filename = "/dev/null"), or filename = "", then
+// both text and json will be written to filename.
 func (l *Logger) SetLogFile(fileName string) error {
-	var w *os.File
+	var textWriter, jsonWriter *os.File
 	var err error
 	if len(fileName) == 0 {
-		w = os.Stdout
+		textWriter = os.Stdout
+		jsonWriter = os.Stdout
 	} else {
-		w, err = os.OpenFile(fileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+		textWriter, err = os.OpenFile(fileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+		if err == nil {
+			jsonWriter, err = os.OpenFile(fmt.Sprintf("%s.json", fileName), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+			if err != nil {
+				jsonWriter = textWriter
+				err = nil
+			}
+		}
 	}
 	if err == nil {
-		if l.writer != nil && l.writer != os.Stdout {
-			l.writer.Close()
+		if l.textWriter != nil && l.textWriter != os.Stdout {
+			l.textWriter.Close()
 		}
-		l.writer = w
+		if l.jsonWriter != nil && l.jsonWriter != os.Stdout && l.jsonWriter != l.textWriter {
+			l.jsonWriter.Close()
+		}
+		l.textWriter = textWriter
+		l.jsonWriter = jsonWriter
 	}
 	return err
 }
@@ -147,7 +164,8 @@ func (l *Logger) writeEntry(severity string, values map[string]string, format st
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(l.writer, "%s\t%s\t%s\n", headerStr, messageStr, jsonStr)
+	_, err = fmt.Fprintf(l.textWriter, "%s\t%s\n", headerStr, messageStr)
+	_, err = fmt.Fprintln(l.jsonWriter, jsonStr)
 	return err
 }
 

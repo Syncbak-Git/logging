@@ -9,14 +9,16 @@ func Example() {
 	logging.L.SetLogFile("")
 	logging.L.Info(map[string]string{"key 1": "value 1", "key2": "value2"}, "Hello World %s\t{%d}", "An\targument", 1234)
 	// output (wrapped for display):
-	// 2014-03-04T21:48:45.925788398Z  INFO    Hello World An argument [1234]  {"app":"logging.test","file":"logging_test.go",
-	// "function":"logging_test.TestOutput","host":"kenf-linux","key 1":"value 1","key2":"value2","line":"10",
-	// "message":"Hello World An argument [1234]","pid":"5992","severity":"INFO","timestamp":"2014-03-04T21:48:45.925788398Z"}
+	// 2014-03-04T21:48:45.925788398Z  INFO    Hello World An argument [1234]
+	// {"app":"logging.test","file":"logging_test.go","function":"logging_test.TestOutput",
+	// "host":"kenf-linux","key 1":"value 1","key2":"value2","line":"10",
+	// "message":"Hello World An argument [1234]","pid":"5992","severity":"INFO",
+	// "timestamp":"2014-03-04T21:48:45.925788398Z"}
 }
 
 // test basic logging functionality
-func TestLogger(t *testing.T) {
-	err := logging.L.SetLogFile("/dev/null")
+func testLogger(f string, t *testing.T) {
+	err := logging.L.SetLogFile(f)
 	if err != nil {
 		t.Errorf("Could not set log file: %s", err)
 	}
@@ -45,6 +47,17 @@ func TestLogger(t *testing.T) {
 	err = logging.L.Fatal(map[string]string{"key 1": "value 1", "key2": "value2"}, "")
 	if err != nil {
 		t.Errorf("Log write error: %s", err)
+	}
+}
+
+func TestLogger(t *testing.T) {
+	fileNames := []string{
+		"",
+		"/dev/null",
+		"./testlog.log",
+	}
+	for _, f := range fileNames {
+		testLogger(f, t)
 	}
 }
 
