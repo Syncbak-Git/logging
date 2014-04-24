@@ -55,17 +55,18 @@ func init() {
 	L = New("")
 }
 
-// SetLogFile sets fileName as the log file target. An empty string sets logging to stdout (the default).
+// SetLogFile sets fileName as the log file target. An empty string sets text file logging to stdout
+// and json logging to null (ie, no json output); this is the default.
 // Normally, there are two log files, one for text and one for json. The text file will be written to
 // filename, while the json content will be written to filename.json
-// If filename.json cannot be opened for write (eg, filename = "/dev/null"), or filename = "", then
+// If filename.json cannot be opened for write (eg, filename = "/dev/null"), then
 // both text and json will be written to filename.
 func (l *Logger) SetLogFile(fileName string) error {
 	var textWriter, jsonWriter *os.File
 	var err error
 	if len(fileName) == 0 {
 		textWriter = os.Stdout
-		jsonWriter = os.Stdout
+		jsonWriter = nil
 	} else {
 		textWriter, err = os.OpenFile(fileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 		if err == nil {
@@ -165,7 +166,9 @@ func (l *Logger) writeEntry(severity string, values map[string]string, format st
 		return err
 	}
 	_, err = fmt.Fprintf(l.textWriter, "%s\t%s\n", headerStr, messageStr)
-	_, err = fmt.Fprintln(l.jsonWriter, jsonStr)
+	if l.jsonWriter != nil {
+		_, err = fmt.Fprintln(l.jsonWriter, jsonStr)
+	}
 	return err
 }
 
