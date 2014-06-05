@@ -15,6 +15,10 @@ import (
 // L is the global Logger instance.
 var L *Logger
 
+func init() {
+	L = New("")
+}
+
 // New creates a new private Logger. If fileName is an empty string, the Logger will write to stdout. New will return nil if it can't create/open fileName.
 func New(fileName string) *Logger {
 	hostname, _ := os.Hostname()
@@ -51,10 +55,6 @@ type Logger struct {
 	doFatal    bool
 }
 
-func init() {
-	L = New("")
-}
-
 // SetLogFile sets fileName as the log file target. An empty string sets text file logging to stdout
 // and json logging to null (ie, no json output); this is the default.
 // Normally, there are two log files, one for text and one for json. The text file will be written to
@@ -66,7 +66,7 @@ func (l *Logger) SetLogFile(fileName string) error {
 	var err error
 	if len(fileName) == 0 {
 		textWriter = os.Stdout
-		jsonWriter = nil
+		jsonWriter, _ = os.OpenFile("/dev/null", os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	} else {
 		textWriter, err = os.OpenFile(fileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 		if err == nil {
@@ -161,12 +161,15 @@ func (l *Logger) writeEntry(severity string, values map[string]string, format st
 		messageStr = strings.Replace(messageStr, "{", "[", -1)
 		messageStr = strings.Replace(messageStr, "}", "]", -1)
 	}
-	jsonStr, err := makeJSONString(kv, values, messageStr)
+	_, err := fmt.Fprintf(l.textWriter, "%s\t%s\n", headerStr, messageStr)
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(l.textWriter, "%s\t%s\n", headerStr, messageStr)
 	if l.jsonWriter != nil {
+		jsonStr, err := makeJSONString(kv, values, messageStr)
+		if err != nil {
+			return err
+		}
 		_, err = fmt.Fprintln(l.jsonWriter, jsonStr)
 	}
 	return err
