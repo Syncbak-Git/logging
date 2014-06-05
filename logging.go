@@ -90,6 +90,17 @@ func (l *Logger) SetLogFile(fileName string) error {
 	return err
 }
 
+// WriteToCatcher changes the destination of the json entries from a local file to a Catcher. Note that
+// SetLogFile will change it back to using a local file, so keep the call order in mind.
+func (l *Logger) WriteToCatcher(host string, port string, password string, interval time.Duration) error {
+	if l.jsonWriter != nil && l.jsonWriter != os.Stdout && l.jsonWriter != l.textWriter {
+		l.jsonWriter.Close()
+	}
+	source := fmt.Sprintf("%s:%s", l.hostName, l.appName)
+	l.jsonWriter = newCatcherWriter(host, port, password, interval, source, l)
+	return nil
+}
+
 // SetOutput controls which levels of logging are enabled/disabled
 func (l *Logger) SetOutput(debug, info, warning, err, critical, fatal bool) {
 	l.doDebug = debug
@@ -165,13 +176,26 @@ func (l *Logger) writeEntry(severity string, values map[string]string, format st
 	if err != nil {
 		return err
 	}
-	if l.jsonWriter != nil {
-		jsonStr, err := makeJSONString(kv, values, messageStr)
-		if err != nil {
-			return err
-		}
-		_, err = fmt.Fprintln(l.jsonWriter, jsonStr)
+	jsonStr, err := makeJSONString(kv, values, messageStr)
+	if err != nil {
+		return err
 	}
+	_, err = fmt.Fprintln(l.jsonWriter, jsonStr)
+	return err
+}
+
+func (l *Logger) writeLocalEntry(severity string, values map[string]string, format string, args ...interface{}) error {
+	// Note that this duplicates nearly all of the code from writeEntry. We use this function internally to log
+	// errors from the catcherWriter, where we don't want to output the json
+	kv := l.getHeaderValues(severity)
+	headerStr := makeHeaderString(kv)
+	messageStr := fmt.Sprintf(format, args...)
+	if strings.ContainsAny(messageStr, "{}\t") {
+		messageStr = strings.Replace(messageStr, "\t", " ", -1)
+		messageStr = strings.Replace(messageStr, "{", "[", -1)
+		messageStr = strings.Replace(messageStr, "}", "]", -1)
+	}
+	_, err := fmt.Fprintf(l.textWriter, "%s\t%s\n", headerStr, messageStr)
 	return err
 }
 

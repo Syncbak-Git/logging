@@ -3,6 +3,7 @@ package logging_test
 import (
 	"github.com/Syncbak-Git/logging"
 	"testing"
+	"time"
 )
 
 func Example() {
@@ -17,10 +18,20 @@ func Example() {
 }
 
 // test basic logging functionality
-func testLogger(f string, t *testing.T) {
+func testLogger(f string, usePitcher bool, t *testing.T) {
 	err := logging.L.SetLogFile(f)
 	if err != nil {
 		t.Errorf("Could not set log file: %s", err)
+	}
+	interval := time.Duration(2) * time.Second
+	if usePitcher {
+		host := "kenf-linux.syncbak.corp"
+		port := "5555"
+		password := "c5bb98c4-ebf0-11e3-ad5f-a753ca514973"
+		err := logging.L.WriteToCatcher(host, port, password, interval)
+		if err != nil {
+			t.Errorf("Error setting up pitcher: %s", err)
+		}
 	}
 	// turn off Fatal logging so that we don't crash the process
 	logging.L.SetOutput(true, true, true, true, true, false)
@@ -48,6 +59,9 @@ func testLogger(f string, t *testing.T) {
 	if err != nil {
 		t.Errorf("Log write error: %s", err)
 	}
+	if usePitcher {
+		time.Sleep(interval * 2)
+	}
 }
 
 func TestLogger(t *testing.T) {
@@ -57,7 +71,18 @@ func TestLogger(t *testing.T) {
 		"./testlog.log",
 	}
 	for _, f := range fileNames {
-		testLogger(f, t)
+		testLogger(f, false, t)
+	}
+}
+
+func TestPitcher(t *testing.T) {
+	fileNames := []string{
+		"",
+		"/dev/null",
+		"./testlog.log",
+	}
+	for _, f := range fileNames {
+		testLogger(f, true, t)
 	}
 }
 
