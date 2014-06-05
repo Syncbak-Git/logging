@@ -20,5 +20,6 @@ The JSON-encoded key-value pairs include an optional set of user-supplied key-va
 		line      line number where the Logger was called
 		file      file name where the logger was called
 		function  function name where the logger was called
+The WriteToCatcher() function allows the JSON records to be written to a remote Catcher application, instead of a local file.
 */
 package logging
