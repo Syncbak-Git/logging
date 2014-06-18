@@ -184,21 +184,6 @@ func (l *Logger) writeEntry(severity string, values map[string]string, format st
 	return err
 }
 
-func (l *Logger) writeLocalEntry(severity string, values map[string]string, format string, args ...interface{}) error {
-	// Note that this duplicates nearly all of the code from writeEntry. We use this function internally to log
-	// errors from the catcherWriter, where we don't want to output the json
-	kv := l.getHeaderValues(severity)
-	headerStr := makeHeaderString(kv)
-	messageStr := fmt.Sprintf(format, args...)
-	if strings.ContainsAny(messageStr, "{}\t") {
-		messageStr = strings.Replace(messageStr, "\t", " ", -1)
-		messageStr = strings.Replace(messageStr, "{", "[", -1)
-		messageStr = strings.Replace(messageStr, "}", "]", -1)
-	}
-	_, err := fmt.Fprintf(l.textWriter, "%s\t%s\n", headerStr, messageStr)
-	return err
-}
-
 func (l *Logger) getHeaderValues(severity string) map[string]string {
 	pc, file, line, _ := runtime.Caller(3)
 	f := runtime.FuncForPC(pc)
