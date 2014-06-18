@@ -42,17 +42,18 @@ func New(fileName string) *Logger {
 
 // Logger is a type passed to the logging functions. It stores the log settings.
 type Logger struct {
-	appName    string
-	hostName   string
-	pid        string
-	jsonWriter io.WriteCloser
-	textWriter io.WriteCloser
-	doDebug    bool
-	doInfo     bool
-	doWarning  bool
-	doError    bool
-	doCritical bool
-	doFatal    bool
+	appName     string
+	hostName    string
+	pid         string
+	jsonWriter  io.WriteCloser
+	textWriter  io.WriteCloser
+	jsonChannel chan<- string
+	doDebug     bool
+	doInfo      bool
+	doWarning   bool
+	doError     bool
+	doCritical  bool
+	doFatal     bool
 }
 
 // SetLogFile sets fileName as the log file target. An empty string sets text file logging to stdout
@@ -90,15 +91,10 @@ func (l *Logger) SetLogFile(fileName string) error {
 	return err
 }
 
-// WriteToCatcher changes the destination of the json entries from a local file to a Catcher. Note that
+// WriteJSONToChannel changes the destination of the json entries from a local file to a channel. Note that
 // SetLogFile will change it back to using a local file, so keep the call order in mind.
-func (l *Logger) WriteToCatcher(host string, port string, password string, interval time.Duration) error {
-	if l.jsonWriter != nil && l.jsonWriter != os.Stdout && l.jsonWriter != l.textWriter {
-		l.jsonWriter.Close()
-	}
-	source := fmt.Sprintf("%s:%s", l.hostName, l.appName)
-	l.jsonWriter = newCatcherWriter(host, port, password, interval, source, l)
-	return nil
+func (l *Logger) WriteJSONToChannel(c chan<- string) {
+	l.jsonChannel = c
 }
 
 // SetOutput controls which levels of logging are enabled/disabled
@@ -180,7 +176,11 @@ func (l *Logger) writeEntry(severity string, values map[string]string, format st
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintln(l.jsonWriter, jsonStr)
+	if l.jsonChannel != nil {
+		l.jsonChannel <- jsonStr
+	} else {
+		_, err = fmt.Fprintln(l.jsonWriter, jsonStr)
+	}
 	return err
 }
 

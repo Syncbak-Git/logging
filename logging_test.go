@@ -26,13 +26,21 @@ func testLogger(f string, usePitcher bool, t *testing.T) {
 	}
 	interval := time.Duration(2) * time.Second
 	if usePitcher {
-		host := "catcher.aws.syncbak.com"
-		port := "5555"
-		password := "c5bb98c4-ebf0-11e3-ad5f-a753ca514973"
-		err := logging.L.WriteToCatcher(host, port, password, interval)
-		if err != nil {
-			t.Errorf("Error setting up pitcher: %s", err)
-		}
+		jsonChannel := make(chan string)
+		defer close(jsonChannel)
+		go func() {
+			for {
+				select {
+				case s, isOpen := <-jsonChannel:
+					if isOpen {
+						fmt.Printf("JSON Channel: %s\n", s)
+					} else {
+						return
+					}
+				}
+			}
+		}()
+		logging.L.WriteJSONToChannel(jsonChannel)
 	}
 	// turn off Fatal logging so that we don't crash the process
 	logging.L.SetOutput(true, true, true, true, true, false)
@@ -109,27 +117,4 @@ func BenchmarkStubbedLogger(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		logging.L.Info(map[string]string{"key 1": "value 1", "key2": "value2"}, "Hello World %s\t{%d}", "An\targument", 1234)
 	}
-}
-
-// long running test for writing files to S3
-func TestS3Write(t *testing.T) {
-	t.SkipNow()
-	err := logging.L.SetLogFile("./testlog.log")
-	interval := time.Duration(2) * time.Second
-	host := "catcher.aws.syncbak.com"
-	//host := "kenf-linux.syncbak.corp"
-	port := "5555"
-	password := "c5bb98c4-ebf0-11e3-ad5f-a753ca514973"
-	err = logging.L.WriteToCatcher(host, port, password, interval)
-	if err != nil {
-		t.Fatalf("Error setting up pitcher: %s", err)
-	}
-	for i := 0; i < 400; i++ {
-		if i > 0 && i%100 == 0 {
-			fmt.Printf("%d\n", i)
-			time.Sleep(2 * interval)
-		}
-		logging.L.Info(nil, "Test message")
-	}
-	time.Sleep(2 * interval)
 }
