@@ -6,6 +6,7 @@ import (
 	"github.com/Syncbak-Git/sbupload/encryption"
 	"io"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -88,33 +89,59 @@ func connect(host string, port string, password string) (*gob.Encoder, *gob.Deco
 
 func transferLogEntries(settings transferConfig) {
 	var enc *gob.Encoder
+	var encoderLock sync.Mutex
 	var err error
 	lines := make([]string, 0, 200)
+	unsentLines := make([]string, 0)
+	maxUnsentLines := 10000 // TODO: don't hard code this
 	timer := time.Tick(settings.reportingInterval)
 	for {
 		select {
 		case <-timer:
 			if len(lines) > 0 {
-				if enc == nil {
-					enc, _, err = connect(settings.host, settings.port, settings.password)
+				linesToSend := make([]string, len(lines))
+				copy(linesToSend, lines)
+				lines = make([]string, 0, len(lines))
+				go func() { // spin off a goroutine with a copy of the lines to send so that we don't block new entries
+					// ensure that we don't have simultaneous users of the gob encoder
+					encoderLock.Lock()
+					defer encoderLock.Unlock()
+					send := func(l []string) error {
+						if enc == nil {
+							enc, _, err = connect(settings.host, settings.port, settings.password)
+							if err != nil {
+								settings.log.writeLocalEntry("ERROR", nil, "Could not connect to %s:, %s", settings.host, err)
+								return err
+							}
+						}
+						t := LogTransfer{
+							Source:    settings.source,
+							StartTime: time.Now().Add(-settings.reportingInterval),
+							Lines:     l,
+						}
+						err = enc.Encode(t)
+						if err != nil {
+							settings.log.writeLocalEntry("ERROR", nil, "Error sending to %s:, %s", settings.host, err)
+							enc = nil
+							return err
+						}
+						settings.log.writeLocalEntry("DEBUG", nil, "Sent %d lines", len(l))
+						return nil
+					}
+					err = send(linesToSend)
 					if err != nil {
-						settings.log.writeLocalEntry("ERROR", nil, "Could not connect to %s:, %s", settings.host, err)
+						unsentLines = append(unsentLines, linesToSend...)
+						if len(unsentLines) > maxUnsentLines {
+							settings.log.writeLocalEntry("WARNING", nil, "Purging %d unsent lines", len(unsentLines)-maxUnsentLines)
+							unsentLines = unsentLines[len(unsentLines)-maxUnsentLines:]
+						}
+					} else if len(unsentLines) > 0 {
+						err = send(unsentLines)
+						if err == nil {
+							unsentLines = make([]string, 0)
+						}
 					}
-				}
-				if enc != nil {
-					t := LogTransfer{
-						Source:    settings.source,
-						StartTime: time.Now().Add(-settings.reportingInterval),
-						Lines:     lines,
-					}
-					err = enc.Encode(t)
-					if err != nil {
-						settings.log.writeLocalEntry("ERROR", nil, "Error sending to %s:, %s", settings.host, err)
-						enc = nil
-					} else {
-						lines = make([]string, 0, cap(lines))
-					}
-				}
+				}()
 			}
 		case s := <-settings.entry:
 			lines = append(lines, string(s))
