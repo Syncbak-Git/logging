@@ -107,6 +107,17 @@ func (l *Logger) SetOutput(debug, info, warning, err, critical, fatal bool) {
 	l.doFatal = fatal
 }
 
+// EnableAllOutput is the same as SetOutput(true, true, true, true, true, true) and is
+// a convenience function that may be useful for easily enabling logging during tests.
+func (l *Logger) EnableAllOutput() {
+	l.doDebug = true
+	l.doInfo = true
+	l.doWarning = true
+	l.doError = true
+	l.doCritical = true
+	l.doFatal = true
+}
+
 // Error is like Debug for ERROR log entries.
 func (l *Logger) Error(values map[string]string, format string, args ...interface{}) error {
 	if !l.doError {
@@ -219,4 +230,31 @@ func makeJSONString(header map[string]string, kv map[string]string, message stri
 		return "", err
 	}
 	return string(b), nil
+}
+
+type AlertLevel int
+
+const (
+	OK AlertLevel = iota
+	WARNING
+	CRITICAL
+)
+
+func (a AlertLevel) String() string {
+	switch a {
+	case OK:
+		return "OK"
+	case WARNING:
+		return "WARNING"
+	case CRITICAL:
+		return "CRTICIAL"
+	}
+	return fmt.Sprintf("UNKNOWN_%d", int(a))
+}
+
+// Alert is somewhat special: it can not be disabled, and it creates more automatic header values.
+func (l *Logger) Alert(level AlertLevel, format string, args ...interface{}) error {
+	values := make(map[string]string)
+	values["alert_level"] = level.String()
+	return l.writeEntry("ALERT", values, format, args...)
 }
