@@ -119,7 +119,7 @@ func (l *Logger) EnableAllOutput() {
 }
 
 // Error is like Debug for ERROR log entries.
-func (l *Logger) Error(values map[string]string, format string, args ...interface{}) error {
+func (l *Logger) Error(values map[string]interface{}, format string, args ...interface{}) error {
 	if !l.doError {
 		return nil
 	}
@@ -127,7 +127,7 @@ func (l *Logger) Error(values map[string]string, format string, args ...interfac
 }
 
 // Warning is like Debug for WARNING log entries.
-func (l *Logger) Warning(values map[string]string, format string, args ...interface{}) error {
+func (l *Logger) Warning(values map[string]interface{}, format string, args ...interface{}) error {
 	if !l.doWarning {
 		return nil
 	}
@@ -135,7 +135,7 @@ func (l *Logger) Warning(values map[string]string, format string, args ...interf
 }
 
 // Info is like Debug for INFO log entries.
-func (l *Logger) Info(values map[string]string, format string, args ...interface{}) error {
+func (l *Logger) Info(values map[string]interface{}, format string, args ...interface{}) error {
 	if !l.doInfo {
 		return nil
 	}
@@ -145,7 +145,7 @@ func (l *Logger) Info(values map[string]string, format string, args ...interface
 // Debug writes a DEBUG log entry. The optional values map contains
 // user-supplied key-value pairs. format and args are passed to fmt.Printf
 // to generate the message entry.
-func (l *Logger) Debug(values map[string]string, format string, args ...interface{}) error {
+func (l *Logger) Debug(values map[string]interface{}, format string, args ...interface{}) error {
 	if !l.doDebug {
 		return nil
 	}
@@ -153,7 +153,7 @@ func (l *Logger) Debug(values map[string]string, format string, args ...interfac
 }
 
 // Critical is like Debug for CRITICAL log entries.
-func (l *Logger) Critical(values map[string]string, format string, args ...interface{}) error {
+func (l *Logger) Critical(values map[string]interface{}, format string, args ...interface{}) error {
 	if !l.doCritical {
 		return nil
 	}
@@ -161,7 +161,7 @@ func (l *Logger) Critical(values map[string]string, format string, args ...inter
 }
 
 // Fatal is like Debug for FATAL log entries, but it also calls os.Exit(1).
-func (l *Logger) Fatal(values map[string]string, format string, args ...interface{}) error {
+func (l *Logger) Fatal(values map[string]interface{}, format string, args ...interface{}) error {
 	if !l.doFatal {
 		return nil
 	}
@@ -170,7 +170,7 @@ func (l *Logger) Fatal(values map[string]string, format string, args ...interfac
 	return err // won't actually get here
 }
 
-func (l *Logger) writeEntry(severity string, values map[string]string, format string, args ...interface{}) error {
+func (l *Logger) writeEntry(severity string, values map[string]interface{}, format string, args ...interface{}) error {
 	kv := l.getHeaderValues(severity)
 	headerStr := makeHeaderString(kv)
 	messageStr := fmt.Sprintf(format, args...)
@@ -195,11 +195,11 @@ func (l *Logger) writeEntry(severity string, values map[string]string, format st
 	return err
 }
 
-func (l *Logger) getHeaderValues(severity string) map[string]string {
+func (l *Logger) getHeaderValues(severity string) map[string]interface{} {
 	pc, file, line, _ := runtime.Caller(3)
 	f := runtime.FuncForPC(pc)
 	caller := f.Name()
-	m := map[string]string{
+	m := map[string]interface{}{
 		"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
 		"severity":  severity,
 		"pid":       l.pid,
@@ -212,12 +212,12 @@ func (l *Logger) getHeaderValues(severity string) map[string]string {
 	return m
 }
 
-func makeHeaderString(m map[string]string) string {
-	return strings.Join([]string{m["timestamp"], m["severity"]}, "\t")
+func makeHeaderString(m map[string]interface{}) string {
+	return strings.Join([]string{m["timestamp"].(string), m["severity"].(string)}, "\t")
 }
 
-func makeJSONString(header map[string]string, kv map[string]string, message string) (string, error) {
-	merged := make(map[string]string)
+func makeJSONString(header map[string]interface{}, kv map[string]interface{}, message string) (string, error) {
+	merged := make(map[string]interface{})
 	for k, v := range kv {
 		merged[k] = v
 	}
@@ -254,7 +254,7 @@ func (a AlertLevel) String() string {
 
 // Alert is somewhat special: it can not be disabled, and it creates more automatic header values.
 func (l *Logger) Alert(level AlertLevel, format string, args ...interface{}) error {
-	values := make(map[string]string)
+	values := make(map[string]interface{})
 	values["alert_level"] = level.String()
 	return l.writeEntry("ALERT", values, format, args...)
 }

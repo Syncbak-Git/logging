@@ -1,15 +1,17 @@
 package logging_test
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/Syncbak-Git/logging"
 	"testing"
 	"time"
+
+	"github.com/Syncbak-Git/logging"
 )
 
 func Example() {
 	logging.L.SetLogFile("")
-	logging.L.Info(map[string]string{"key 1": "value 1", "key2": "value2"}, "Hello World %s\t{%d}", "An\targument", 1234)
+	logging.L.Info(map[string]interface{}{"key 1": "value 1", "key2": "value2"}, "Hello World %s\t{%d}", "An\targument", 1234)
 	// output (wrapped for display):
 	// 2014-03-04T21:48:45.925788398Z  INFO    Hello World An argument [1234]
 	// {"app":"logging.test","file":"logging_test.go","function":"logging_test.TestOutput",
@@ -64,7 +66,7 @@ func testLogger(f string, usePitcher bool, t *testing.T) {
 	if err != nil {
 		t.Errorf("Log write error: %s", err)
 	}
-	err = logging.L.Fatal(map[string]string{"key 1": "value 1", "key2": "value2"}, "")
+	err = logging.L.Fatal(map[string]interface{}{"key 1": "value 1", "key2": "value2"}, "")
 	if err != nil {
 		t.Errorf("Log write error: %s", err)
 	}
@@ -99,7 +101,7 @@ func TestPitcher(t *testing.T) {
 func BenchmarkNullLogger(b *testing.B) {
 	logging.L.SetLogFile("/dev/null")
 	for i := 0; i < b.N; i++ {
-		logging.L.Info(map[string]string{"key 1": "value 1", "key2": "value2"}, "Hello World %s\t{%d}", "An\targument", 1234)
+		logging.L.Info(map[string]interface{}{"key 1": "value 1", "key2": "value2"}, "Hello World %s\t{%d}", "An\targument", 1234)
 	}
 }
 
@@ -107,7 +109,7 @@ func BenchmarkNullLogger(b *testing.B) {
 func BenchmarkFileLogger(b *testing.B) {
 	logging.L.SetLogFile("./benchmark.log")
 	for i := 0; i < b.N; i++ {
-		logging.L.Info(map[string]string{"key 1": "value 1", "key2": "value2"}, "Hello World %s\t{%d}", "An\targument", 1234)
+		logging.L.Info(map[string]interface{}{"key 1": "value 1", "key2": "value2"}, "Hello World %s\t{%d}", "An\targument", 1234)
 	}
 }
 
@@ -115,6 +117,19 @@ func BenchmarkFileLogger(b *testing.B) {
 func BenchmarkStubbedLogger(b *testing.B) {
 	logging.L.SetOutput(false, false, false, false, false, false)
 	for i := 0; i < b.N; i++ {
-		logging.L.Info(map[string]string{"key 1": "value 1", "key2": "value2"}, "Hello World %s\t{%d}", "An\targument", 1234)
+		logging.L.Info(map[string]interface{}{"key 1": "value 1", "key2": "value2"}, "Hello World %s\t{%d}", "An\targument", 1234)
 	}
+}
+
+func TestLogInterface(t *testing.T) {
+	m := map[string]interface{}{"key1": 23,
+		"key2": "stringkey",
+		"key3": false,
+	}
+	//map[string]interface{}{"key 1": "value 1", "key2": "value2"}
+	b, err := json.Marshal(m)
+	if err != nil {
+		t.Errorf("error marshalling map %s", err)
+	}
+	fmt.Printf("looks like we got json %s\n", string(b))
 }
