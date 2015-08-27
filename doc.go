@@ -12,7 +12,7 @@ entries are JSON-encoded key-value pairs. In both text and json entries, '\t', '
 the message field are replaced with ' ', '[' and ']' respectively.
 The JSON-encoded key-value pairs include an optional set of user-supplied key-values, and the following values:
 		timestamp RFC3339 Nano UTC timestamp
-		severity  DEBUG, INFO, WARNING, ERROR, CRITICAL, FATAL
+		severity  DEBUG, INFO, WARNING, ERROR, CRITICAL, FATAL, METRICS
         message   free form text field
 		pid       process ID
 		app       application name
@@ -20,6 +20,6 @@ The JSON-encoded key-value pairs include an optional set of user-supplied key-va
 		line      line number where the Logger was called
 		file      file name where the logger was called
 		function  function name where the logger was called
-The WriteToCatcher() function allows the JSON records to be written to a remote Catcher application, instead of a local file.
+The WriteJSONToChannel() function allows the JSON records to be written to a channel instead of a local file.
 */
 package logging

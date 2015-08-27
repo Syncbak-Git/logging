@@ -1,8 +1,10 @@
 package logging_test
 
 import (
-	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,14 +12,22 @@ import (
 )
 
 func Example() {
-	logging.L.SetLogFile("")
-	logging.L.Info(map[string]interface{}{"key 1": "value 1", "key2": "value2"}, "Hello World %s\t{%d}", "An\targument", 1234)
-	// output (wrapped for display):
+	l := logging.New("")
+	val, _ := logging.NewKeyValues("key 1", "value 1", "key2", "value2")
+	l.Info(val, "Hello World %s\t{%d}", "An\targument", 1234)
+	// Expected output (adjust timestamps):
 	// 2014-03-04T21:48:45.925788398Z  INFO    Hello World An argument [1234]
+	// Json file output, if we had any:
 	// {"app":"logging.test","file":"logging_test.go","function":"logging_test.TestOutput",
 	// "host":"kenf-linux","key 1":"value 1","key2":"value2","line":"10",
 	// "message":"Hello World An argument [1234]","pid":"5992","severity":"INFO",
 	// "timestamp":"2014-03-04T21:48:45.925788398Z"}
+}
+
+func ExampleNewKeyValues() {
+	val, _ := logging.NewKeyValues("Hello", "world", "number", 1234)
+	fmt.Println(val)
+	// Output: map[Hello:world number:1234]
 }
 
 // test basic logging functionality
@@ -81,6 +91,8 @@ func TestLogger(t *testing.T) {
 		"/dev/null",
 		"./testlog.log",
 	}
+	defer os.Remove("./testlog.log")
+	defer os.Remove("./testlog.log.json")
 	for _, f := range fileNames {
 		testLogger(f, false, t)
 	}
@@ -92,6 +104,7 @@ func TestPitcher(t *testing.T) {
 		"/dev/null",
 		"./testlog.log",
 	}
+	defer os.Remove("./testlog.log")
 	for _, f := range fileNames {
 		testLogger(f, true, t)
 	}
@@ -108,6 +121,8 @@ func BenchmarkNullLogger(b *testing.B) {
 // benchmark logging calls that write to a file
 func BenchmarkFileLogger(b *testing.B) {
 	logging.L.SetLogFile("./benchmark.log")
+	defer os.Remove("./benchmark.log")
+	defer os.Remove("./benchmark.log.json")
 	for i := 0; i < b.N; i++ {
 		logging.L.Info(map[string]interface{}{"key 1": "value 1", "key2": "value2"}, "Hello World %s\t{%d}", "An\targument", 1234)
 	}
@@ -115,21 +130,39 @@ func BenchmarkFileLogger(b *testing.B) {
 
 // benchmark logging calls that don't actually do anything; tests map setup
 func BenchmarkStubbedLogger(b *testing.B) {
-	logging.L.SetOutput(false, false, false, false, false, false)
+	logging.L.SetLogLevel(logging.None)
 	for i := 0; i < b.N; i++ {
 		logging.L.Info(map[string]interface{}{"key 1": "value 1", "key2": "value2"}, "Hello World %s\t{%d}", "An\targument", 1234)
 	}
 }
 
-func TestLogInterface(t *testing.T) {
-	m := map[string]interface{}{"key1": 23,
-		"key2": "stringkey",
-		"key3": false,
+func TestLogger_Write(t *testing.T) {
+	l := logging.New("./writetest.log")
+	if l == nil {
+		t.Fatal("Could not create writetest.log")
 	}
-	//map[string]interface{}{"key 1": "value 1", "key2": "value2"}
-	b, err := json.Marshal(m)
+	defer os.Remove("./writetest.log")
+	defer os.Remove("./writetest.log.json")
+	l.SetLogLevel(logging.Error)
+	err := l.Write(logging.Error|logging.Debug, nil, "Hello world")
+	human, err := ioutil.ReadFile("./writetest.log")
 	if err != nil {
-		t.Errorf("error marshalling map %s", err)
+		t.Fatalf("Could not read log file: %s", err)
 	}
-	fmt.Printf("looks like we got json %s\n", string(b))
+	if strings.Count(string(human), "ERROR") != 1 {
+		t.Errorf("Bad ERROR count:\n%s", string(human))
+	}
+	if strings.Count(string(human), "DEBUG") != 0 {
+		t.Errorf("Bad DEBUG count:\n%s", string(human))
+	}
+	js, err := ioutil.ReadFile("./writetest.log.json")
+	if err != nil {
+		t.Fatalf("Could not read json log file: %s", err)
+	}
+	if strings.Count(string(js), "ERROR") != 1 {
+		t.Errorf("Bad ERROR count:\n%s", string(human))
+	}
+	if strings.Count(string(js), "DEBUG") != 0 {
+		t.Errorf("Bad DEBUG count:\n%s", string(human))
+	}
 }

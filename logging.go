@@ -19,19 +19,30 @@ func init() {
 	L = New("")
 }
 
+// Level is a logging level. Multiple logging levels can be combined by ORing individual
+// Level values, eg. Debug|Error will log both DEBUG and ERROR entries.
+type Level uint64
+
+const (
+	Debug Level = 1 << iota
+	Info
+	Warning
+	Error
+	Critical
+	Fatal
+	Metrics
+	All  = 0xFFFF
+	None = 0
+)
+
 // New creates a new private Logger. If fileName is an empty string, the Logger will write to stdout. New will return nil if it can't create/open fileName.
 func New(fileName string) *Logger {
 	hostname, _ := os.Hostname()
 	l := Logger{
-		appName:    path.Base(os.Args[0]),
-		hostName:   hostname,
-		pid:        strconv.Itoa(os.Getpid()),
-		doDebug:    false,
-		doInfo:     true,
-		doWarning:  true,
-		doError:    true,
-		doCritical: true,
-		doFatal:    true,
+		appName:  path.Base(os.Args[0]),
+		hostName: hostname,
+		pid:      strconv.Itoa(os.Getpid()),
+		logLevel: All,
 	}
 	err := l.SetLogFile(fileName)
 	if err != nil {
@@ -48,12 +59,7 @@ type Logger struct {
 	jsonWriter  io.WriteCloser
 	textWriter  io.WriteCloser
 	jsonChannel chan<- string
-	doDebug     bool
-	doInfo      bool
-	doWarning   bool
-	doError     bool
-	doCritical  bool
-	doFatal     bool
+	logLevel    Level
 }
 
 // SetLogFile sets fileName as the log file target. An empty string sets text file logging to stdout
@@ -63,6 +69,9 @@ type Logger struct {
 // If filename.json cannot be opened for write (eg, filename = "/dev/null"), then
 // both text and json will be written to filename.
 func (l *Logger) SetLogFile(fileName string) error {
+	// TODO: change this so writes to the json file always go through a channel. When the
+	// channel is nil, we can skip the preparation of the json. When we want to write
+	// to a file, launch a goroutine that listens to the channel and writes to the file.
 	var textWriter, jsonWriter *os.File
 	var err error
 	if len(fileName) == 0 {
@@ -97,81 +106,159 @@ func (l *Logger) WriteJSONToChannel(c chan<- string) {
 	l.jsonChannel = c
 }
 
-// SetOutput controls which levels of logging are enabled/disabled
+// SetOutput controls which levels of logging are enabled/disabled. Obsolete -- use SetLogLevel()
 func (l *Logger) SetOutput(debug, info, warning, err, critical, fatal bool) {
-	l.doDebug = debug
-	l.doInfo = info
-	l.doWarning = warning
-	l.doError = err
-	l.doCritical = critical
-	l.doFatal = fatal
+	l.logLevel = None
+	if debug {
+		l.logLevel |= Debug
+	}
+	if info {
+		l.logLevel |= Info
+	}
+	if err {
+		l.logLevel |= Error
+	}
+	if warning {
+		l.logLevel |= Warning
+	}
+	if fatal {
+		l.logLevel |= Fatal
+	}
+	if critical {
+		l.logLevel |= Critical
+	}
 }
 
-// EnableAllOutput is the same as SetOutput(true, true, true, true, true, true) and is
+// EnableAllOutput is the same as SetLogLevel(All) and is
 // a convenience function that may be useful for easily enabling logging during tests.
 func (l *Logger) EnableAllOutput() {
-	l.doDebug = true
-	l.doInfo = true
-	l.doWarning = true
-	l.doError = true
-	l.doCritical = true
-	l.doFatal = true
+	l.logLevel = All
+}
+
+// SetLogLevel sets the logging level to the level or levels in level, eg Debug | Error
+func (l *Logger) SetLogLevel(level Level) {
+	l.logLevel = level
 }
 
 // Error is like Debug for ERROR log entries.
 func (l *Logger) Error(values map[string]interface{}, format string, args ...interface{}) error {
-	if !l.doError {
+	if l.logLevel&Error == 0 {
 		return nil
 	}
-	return l.writeEntry("ERROR", values, format, args...)
+	return l.writeEntry(Error, values, format, args...)
 }
 
 // Warning is like Debug for WARNING log entries.
 func (l *Logger) Warning(values map[string]interface{}, format string, args ...interface{}) error {
-	if !l.doWarning {
+	if l.logLevel&Warning == 0 {
 		return nil
 	}
-	return l.writeEntry("WARNING", values, format, args...)
+	return l.writeEntry(Warning, values, format, args...)
 }
 
 // Info is like Debug for INFO log entries.
 func (l *Logger) Info(values map[string]interface{}, format string, args ...interface{}) error {
-	if !l.doInfo {
+	if l.logLevel&Info == 0 {
 		return nil
 	}
-	return l.writeEntry("INFO", values, format, args...)
+	return l.writeEntry(Info, values, format, args...)
 }
 
 // Debug writes a DEBUG log entry. The optional values map contains
 // user-supplied key-value pairs. format and args are passed to fmt.Printf
 // to generate the message entry.
 func (l *Logger) Debug(values map[string]interface{}, format string, args ...interface{}) error {
-	if !l.doDebug {
+	if l.logLevel&Debug == 0 {
 		return nil
 	}
-	return l.writeEntry("DEBUG", values, format, args...)
+	return l.writeEntry(Debug, values, format, args...)
+}
+
+// Metrics is like Debug for METRICS log entries.
+func (l *Logger) Metrics(values map[string]interface{}, format string, args ...interface{}) error {
+	if l.logLevel&Metrics == 0 {
+		return nil
+	}
+	return l.writeEntry(Metrics, values, format, args...)
 }
 
 // Critical is like Debug for CRITICAL log entries.
 func (l *Logger) Critical(values map[string]interface{}, format string, args ...interface{}) error {
-	if !l.doCritical {
+	if l.logLevel&Critical == 0 {
 		return nil
 	}
-	return l.writeEntry("CRITICAL", values, format, args...)
+	return l.writeEntry(Critical, values, format, args...)
 }
 
 // Fatal is like Debug for FATAL log entries, but it also calls os.Exit(1).
 func (l *Logger) Fatal(values map[string]interface{}, format string, args ...interface{}) error {
-	if !l.doFatal {
+	if l.logLevel&Fatal == 0 {
 		return nil
 	}
-	err := l.writeEntry("FATAL", values, format, args...)
+	err := l.writeEntry(Fatal, values, format, args...)
 	os.Exit(1)
 	return err // won't actually get here
 }
 
-func (l *Logger) writeEntry(severity string, values map[string]interface{}, format string, args ...interface{}) error {
-	kv := l.getHeaderValues(severity)
+func (l Level) _String(logLevel Level) string {
+	s := make([]string, 0)
+	if l&Debug != 0 && logLevel&Debug != 0 {
+		s = append(s, "DEBUG")
+	}
+	if l&Info != 0 && logLevel&Info != 0 {
+		s = append(s, "INFO")
+	}
+	if l&Warning != 0 && logLevel&Warning != 0 {
+		s = append(s, "WARNING")
+	}
+	if l&Error != 0 && logLevel&Error != 0 {
+		s = append(s, "ERROR")
+	}
+	if l&Critical != 0 && logLevel&Critical != 0 {
+		s = append(s, "CRITICAL")
+	}
+	if l&Fatal != 0 && logLevel&Fatal != 0 {
+		s = append(s, "FATAL")
+	}
+	if l&Metrics != 0 && logLevel&Metrics != 0 {
+		s = append(s, "METRICS")
+	}
+	return strings.Join(s, "|")
+}
+
+// Write allows writing log entries with multiple log levels, eg DEBUG|INFO|METRICS
+func (l *Logger) Write(level Level, values map[string]interface{}, format string, args ...interface{}) error {
+	err := l.writeEntry(level, values, format, args...)
+	if level&Fatal != 0 {
+		os.Exit(1)
+	}
+	return err
+}
+
+// NewKeyValues is a convenience function that creates a map of (string) keys and
+// associated values that can be passed as the values argument to Debug(), Info(), etc.
+// args is a set of key + value pairs.
+func NewKeyValues(args ...interface{}) (map[string]interface{}, error) {
+	m := make(map[string]interface{})
+	for i := 0; i < len(args); i += 2 {
+		s, ok := args[i].(string)
+		if !ok {
+			return nil, fmt.Errorf("args[%d] is not a string: %+v", i, args[i])
+		}
+		var a interface{}
+		if i+1 < len(args) {
+			a = args[i+1]
+		}
+		m[s] = a
+	}
+	return m, nil
+}
+
+func (l *Logger) writeEntry(level Level, values map[string]interface{}, format string, args ...interface{}) error {
+	if level&l.logLevel == 0 {
+		return nil
+	}
+	kv := l.getHeaderValues(level)
 	headerStr := makeHeaderString(kv)
 	messageStr := fmt.Sprintf(format, args...)
 	if strings.ContainsAny(messageStr, "{}\t") {
@@ -195,13 +282,13 @@ func (l *Logger) writeEntry(severity string, values map[string]interface{}, form
 	return err
 }
 
-func (l *Logger) getHeaderValues(severity string) map[string]interface{} {
+func (l *Logger) getHeaderValues(level Level) map[string]interface{} {
 	pc, file, line, _ := runtime.Caller(3)
 	f := runtime.FuncForPC(pc)
 	caller := f.Name()
 	m := map[string]interface{}{
 		"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
-		"severity":  severity,
+		"severity":  level._String(l.logLevel),
 		"pid":       l.pid,
 		"app":       l.appName,
 		"host":      l.hostName,
@@ -230,31 +317,4 @@ func makeJSONString(header map[string]interface{}, kv map[string]interface{}, me
 		return "", err
 	}
 	return string(b), nil
-}
-
-type AlertLevel int
-
-const (
-	OK AlertLevel = iota
-	WARNING
-	CRITICAL
-)
-
-func (a AlertLevel) String() string {
-	switch a {
-	case OK:
-		return "OK"
-	case WARNING:
-		return "WARNING"
-	case CRITICAL:
-		return "CRTICIAL"
-	}
-	return fmt.Sprintf("UNKNOWN_%d", int(a))
-}
-
-// Alert is somewhat special: it can not be disabled, and it creates more automatic header values.
-func (l *Logger) Alert(level AlertLevel, format string, args ...interface{}) error {
-	values := make(map[string]interface{})
-	values["alert_level"] = level.String()
-	return l.writeEntry("ALERT", values, format, args...)
 }
