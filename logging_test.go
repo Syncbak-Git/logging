@@ -13,7 +13,7 @@ import (
 
 func Example() {
 	l := logging.New("")
-	val, _ := logging.NewKeyValues("key 1", "value 1", "key2", "value2")
+	val, _ := logging.NewKV("key 1", "value 1", "key2", "value2")
 	l.Info(val, "Hello World %s\t{%d}", "An\targument", 1234)
 	// Expected output (adjust timestamps):
 	// 2014-03-04T21:48:45.925788398Z  INFO    Hello World An argument [1234]
@@ -24,8 +24,8 @@ func Example() {
 	// "timestamp":"2014-03-04T21:48:45.925788398Z"}
 }
 
-func ExampleNewKeyValues() {
-	val, _ := logging.NewKeyValues("Hello", "world", "number", 1234)
+func ExampleNewKV() {
+	val, _ := logging.NewKV("Hello", "world", "number", 1234)
 	fmt.Println(val)
 	// Output: map[Hello:world number:1234]
 }

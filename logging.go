@@ -235,10 +235,10 @@ func (l *Logger) Write(level Level, values map[string]interface{}, format string
 	return err
 }
 
-// NewKeyValues is a convenience function that creates a map of (string) keys and
+// NewKV is a convenience function that creates a map of (string) keys and
 // associated values that can be passed as the values argument to Debug(), Info(), etc.
 // args is a set of key + value pairs.
-func NewKeyValues(args ...interface{}) (map[string]interface{}, error) {
+func NewKV(args ...interface{}) (map[string]interface{}, error) {
 	m := make(map[string]interface{})
 	for i := 0; i < len(args); i += 2 {
 		s, ok := args[i].(string)
