@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -254,6 +255,8 @@ func NewKV(args ...interface{}) (map[string]interface{}, error) {
 	return m, nil
 }
 
+var re *regexp.Regexp = regexp.MustCompile("ERROR|FATAL|CRITICAL")
+
 func (l *Logger) writeEntry(level Level, values map[string]interface{}, format string, args ...interface{}) error {
 	if level&l.logLevel == 0 {
 		return nil
@@ -270,14 +273,17 @@ func (l *Logger) writeEntry(level Level, values map[string]interface{}, format s
 	if err != nil {
 		return err
 	}
-	jsonStr, err := makeJSONString(kv, values, messageStr)
-	if err != nil {
-		return err
-	}
-	if l.jsonChannel != nil {
-		l.jsonChannel <- jsonStr
-	} else {
-		_, err = fmt.Fprintln(l.jsonWriter, jsonStr)
+	//only write to json file/channel on certain levels or when we have a map
+	if values != nil || re.MatchString(headerStr) {
+		jsonStr, err := makeJSONString(kv, values, messageStr)
+		if err != nil {
+			return err
+		}
+		if l.jsonChannel != nil {
+			l.jsonChannel <- jsonStr
+		} else {
+			_, err = fmt.Fprintln(l.jsonWriter, jsonStr)
+		}
 	}
 	return err
 }

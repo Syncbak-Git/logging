@@ -128,6 +128,16 @@ func BenchmarkFileLogger(b *testing.B) {
 	}
 }
 
+//benchmark without map at info level
+func BenchmarkFileNoJson(b *testing.B) {
+	logging.L.SetLogFile("./benchmark.log")
+	defer os.Remove("./benchmark.log")
+	defer os.Remove("./benchmark.log.json")
+	for i := 0; i < b.N; i++ {
+		logging.L.Info(nil, "Hello World %s\t{%d}", "An\targument", 1234)
+	}
+}
+
 // benchmark logging calls that don't actually do anything; tests map setup
 func BenchmarkStubbedLogger(b *testing.B) {
 	logging.L.SetLogLevel(logging.None)
