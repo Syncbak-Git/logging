@@ -1,6 +1,8 @@
 Package logging 
 ===============
 
+This repository has been archived. Please a maintained alternative.
+
 import "github.com/Syncbak-Git/logging"
 
 Package logging provides basic logging with machine-readable output.
